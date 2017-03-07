@@ -3,8 +3,8 @@
 	require_once 'utilidades/ExcepcionApi.php';
 	require_once 'utilidades/ConexionBD.php';
 	require_once 'controladores/usuarios.php';
-	
-	class contactos {
+
+	class contactos extends usuarios{
 
 	    const NOMBRE_TABLA = "contacto";
 	    const ID_CONTACTO = "idContacto";
@@ -21,9 +21,9 @@
 	    const ESTADO_ERROR_PARAMETROS = 4;
 	    const ESTADO_NO_ENCONTRADO = 5;
 
-	    public static function get($peticion){
+	    public function get($peticion){
 
-	    	$idUsuario = usuarios::autorizar();
+	    	$idUsuario = $this->autorizar();
 
 		    if (empty($peticion[0]))
 		        return self::obtenerContactos($idUsuario);
