@@ -1,71 +1,70 @@
 <?php 
-    
+
     require_once '/../datos/login_mysql.php';
     
     class ConexionBD{
 
-        // var $dbCon;
         private static $dbCon = null;
-        private static $pdo;
+        private static $db = null;
 
         final private function __construct(){
             self::conect();
         }
 
-        public function conect(){
+        public static function conect(){
+
             self::$dbCon = new mysqli(NOMBRE_HOST, USUARIO, CONTRASENA, BASE_DE_DATOS);
-            // self::$dbCon = new mysqli('localhost', 'root', 'toortoor', 'cotizador');
-            self::$dbCon->set_charset("utf8");
 
-            return self::$dbCon;
+            if(self::$dbCon->connect_error)
+                die("Error de Conexión (" . self::$dbCon->connect_error . ")" );
+            else{
+                self::$dbCon->set_charset("utf8");
+                return self::$dbCon;
+            }
 
-            // if(!self::$$dbCon)
-            //     echo self::show_error();
         }
 
-        public function query($consult){
-            $query = self::$dbCon->query($consult);
-            // if(!$query)
-            //     $this->show_error();
-            // else
-                return $query;
+
+        public static function query($consult){
+
+            return self::conect()->query($consult);;
             
         }
 
         public function next_result(){
-            $this->dbCon->next_result();
+            self::conect()->next_result();
         }
 
         private function show_error(){
-            return $this->dbCon->connect_error;
+            return self::conect()->connect_error;
         }
 
-        public function query_assoc($result){
+        public function query_assoc($consult){
             $vec = array();
-            // if($result = self::query($consult)){
-                // echo 'prev';
-                // var_dump($result);
-                // echo 'prev';
-                // exit;
+
+            if($result = self::query($consult)){
                 while($fila = $result->fetch_assoc()){ $vec[] = $fila; }
-            // }
-            return $vec;
+                return $vec;
+            }
         }
 
         public function query_row($consult){
+
             $vec = array();
-            if($result = $this->query($consult)){
+            if($result = self::query($consult)){
                 while($fila = $result->fetch_row()){ $vec[] = $fila; }
+                return $vec;
             }
-            return $vec;
+        }
+
+        public function query_single_object($consult){
+            
+            if($result = self::query($consult))
+                return $result->fetch_object();
         }
 
         public function exit_conect(){
-            mysqli_close($this->dbCon);
-        }
-
-        public function obtenerId(){
-            return $this->dbCon->insert_id;
+            mysqli_close(self::conect());
         }
 
         public function destroy(){

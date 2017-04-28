@@ -15,11 +15,16 @@
 	    const ID_USUARIO = "idUsuario";
 
 	    const CODIGO_EXITO = 1;
-	    const ESTADO_EXITO = 1;
-	    const ESTADO_ERROR = 2;
-	    const ESTADO_ERROR_BD = 3;
-	    const ESTADO_ERROR_PARAMETROS = 4;
-	    const ESTADO_NO_ENCONTRADO = 5;
+	    const CODIGO_ERROR = 2;
+	    const CODIGO_ERROR_BD = 3;
+	    const CODIGO_ERROR_PARAMETROS = 4;
+	    const CODIGO_NO_ENCONTRADO = 5;
+
+	    const MSG_ERROR_BD = "Error de base de datos";
+	    const MSG_NO_ENCONTRADO = "El contacto al que intentas acceder no existe";
+	    const MSG_ERROR_PARAMETROS = "Error en existencia o sintaxis de parámetros";
+	    const MSG_ERROR = "Error";
+	    const MSG_EXITO = "Success";
 
 	    public static function get($peticion){
 
@@ -29,128 +34,75 @@
 		        return self::obtenerContactos($idUsuario);
 		    else
 		        return self::obtenerContactos($idUsuario, $peticion[0]);  
-
+    
 	    }
-
 
 	    public static function post($peticion){
 
 	        $idUsuario = usuarios::autorizar();
 
+
 	        $body = file_get_contents('php://input');
 	        $contacto = json_decode($body);
 
-	        $idContacto = contactos::crear($idUsuario, $contacto);
+	       	
+	        if(self::validaEstructura($contacto)){
 
-	        http_response_code(201);
-	        return [
-	            "estado" => self::CODIGO_EXITO,
-	            "mensaje" => "Contacto creado",
-	            "id" => $idContacto
-	        ];
+		        $idContacto = contactos::crear($idUsuario, $contacto);
+
+	        	http_response_code(201);
+		        return [
+		            "estado" => self::CODIGO_EXITO,
+		            "mensaje" => "Contacto creado",
+		            "id" => $idContacto
+		        ];
+
+		    }
+		    else
+		    	throw new ExcepcionApi(self::CODIGO_ERROR_PARAMETROS, self::MSG_ERROR_PARAMETROS, 422);
 
 	    }
 
 	    public static function put($peticion){
 
 	        $idUsuario = usuarios::autorizar();
+	        
+            $body = file_get_contents('php://input');
+            $contacto = json_decode($body);
 
-	        if (!empty($peticion[0])) {
-	            $body = file_get_contents('php://input');
-	            $contacto = json_decode($body);
+            if (!empty($peticion[0]) && self::validaEstructura($contacto) == TRUE) {
 
-	            if (self::actualizar($idUsuario, $contacto, $peticion[0]) > 0) {
-	                http_response_code(200);
-	                return [
-	                    "estado" => self::CODIGO_EXITO,
-	                    "mensaje" => "Registro actualizado correctamente"
-	                ];
-	            } else {
-	                throw new ExcepcionApi(self::ESTADO_NO_ENCONTRADO,
-	                    "El contacto al que intentas acceder no existe", 404);
-	            }
-	        } else {
-	            throw new ExcepcionApi(self::ESTADO_ERROR_PARAMETROS, "Falta id", 422);
+	            self::actualizar($idUsuario, $contacto, $peticion[0])) {
+                http_response_code(200);
+                return [
+                    "estado" => self::CODIGO_EXITO,
+                    "mensaje" => "Registro actualizado correctamente"
+                ];
+	            
 	        }
+	        else
+	        	throw new ExcepcionApi(self::CODIGO_ERROR_PARAMETROS, self::MSG_ERROR_PARAMETROS, 422);     
 	    
 	    }
-
 
 	    public static function delete($peticion){
 	    	
 	        $idUsuario = usuarios::autorizar();
 
 	        if (!empty($peticion[0])) {
-	            if (self::eliminar($idUsuario, $peticion[0]) > 0) {
-	                http_response_code(200);
-	                return [
-	                    "estado" => self::CODIGO_EXITO,
-	                    "mensaje" => "Registro eliminado correctamente"
-	                ];
-	            } else {
-	                throw new ExcepcionApi(self::ESTADO_NO_ENCONTRADO,
-	                    "El contacto al que intentas acceder no existe", 404);
-	            }
-	        } else {
-	            throw new ExcepcionApi(self::ESTADO_ERROR_PARAMETROS, "Falta id", 422);
+	            
+	            self::eliminar($idUsuario, $peticion[0])
+                http_response_code(200);
+                return [
+                    "estado" => self::CODIGO_EXITO,
+                    "mensaje" => "Registro eliminado correctamente"
+                ];
+	            
 	        }
-
+	        else
+	            throw new ExcepcionApi(self::CODIGO_ERROR_PARAMETROS, self::MSG_ERROR_PARAMETROS, 422);
+	        
 	    }
-
-
-	    /**
-	     * Añade un nuevo contacto asociado a un usuario
-	     * @param int $idUsuario identificador del usuario
-	     * @param mixed $contacto datos del contacto
-	     * @return string identificador del contacto
-	     * @throws ExcepcionApi
-	     */
-	    private function crear($idUsuario, $contacto){
-
-		    if ($contacto) {
-		        try {
-
-		            $pdo = ConexionBD::obtenerInstancia()->obtenerBD();
-
-		            // Sentencia INSERT
-		            $comando = "INSERT INTO " . self::NOMBRE_TABLA . " ( " .
-		                self::PRIMER_NOMBRE . "," .
-		                self::PRIMER_APELLIDO . "," .
-		                self::TELEFONO . "," .
-		                self::CORREO . "," .
-		                self::ID_USUARIO . ")" .
-		                " VALUES(?,?,?,?,?)";
-
-		            // Preparar la sentencia
-		            $sentencia = $pdo->prepare($comando);
-
-		            $sentencia->bindParam(1, $primerNombre);
-		            $sentencia->bindParam(2, $primerApellido);
-		            $sentencia->bindParam(3, $telefono);
-		            $sentencia->bindParam(4, $correo);
-		            $sentencia->bindParam(5, $idUsuario);
-
-
-		            $primerNombre = $contacto->primerNombre;
-		            $primerApellido = $contacto->primerApellido;
-		            $telefono = $contacto->telefono;
-		            $correo = $contacto->correo;
-
-		            $sentencia->execute();
-
-		            // Retornar en el último id insertado
-		            return $pdo->lastInsertId();
-
-		        } catch (PDOException $e) {
-		            throw new ExcepcionApi(self::ESTADO_ERROR_BD, $e->getMessage());
-		        }
-		    } else {
-		        throw new ExcepcionApi(
-		            self::ESTADO_ERROR_PARAMETROS, 
-		            utf8_encode("Error en existencia o sintaxis de parámetros"));
-		    }
-
-		}
 
 
 		/**
@@ -162,43 +114,51 @@
 	     */
 	    private function obtenerContactos($idUsuario, $idContacto = NULL){
 
-		    try {
-		        if (!$idContacto) {
-		            $comando = "SELECT * FROM " . self::NOMBRE_TABLA .
-		                " WHERE " . self::ID_USUARIO . "=?";
+	        if (!$idContacto)
+	            $comando = "SELECT * FROM " . self::NOMBRE_TABLA . " WHERE " . self::ID_USUARIO . "=$idUsuario";
+	        else
+	            $comando = "SELECT * FROM " . self::NOMBRE_TABLA . " WHERE " . self::ID_CONTACTO . "= $idContacto AND " . self::ID_USUARIO . "= $idUsuario";
+	        	
 
-		            // Preparar sentencia
-		            $sentencia = ConexionBD::obtenerInstancia()->obtenerBD()->prepare($comando);
-		            // Ligar idUsuario
-		            $sentencia->bindParam(1, $idUsuario, PDO::PARAM_INT);
+	        if ($resultado = ConexionBD::query_assoc($comando)) {
+	        	http_response_code(200);
+	            return
+	                [
+	                    "estado" => self::CODIGO_EXITO,
+	                    "datos" => $resultado
+	                ];	
+	        }
+	        else
+	        	throw new ExcepcionApi(self::CODIGO_NO_ENCONTRADO, self::MSG_NO_ENCONTRADO, 404);
 
-		        } else {
-		            $comando = "SELECT * FROM " . self::NOMBRE_TABLA .
-		                " WHERE " . self::ID_CONTACTO . "=? AND " .
-		                self::ID_USUARIO . "=?";
+		}
 
-		            // Preparar sentencia
-		            $sentencia = ConexionBD::obtenerInstancia()->obtenerBD()->prepare($comando);
-		            // Ligar idContacto e idUsuario
-		            $sentencia->bindParam(1, $idContacto, PDO::PARAM_INT);
-		            $sentencia->bindParam(2, $idUsuario, PDO::PARAM_INT);
-		        }
 
-		        // Ejecutar sentencia preparada
-		        if ($sentencia->execute()) {
-		            http_response_code(200);
-		            return
-		                [
-		                    "estado" => self::ESTADO_EXITO,
-		                    "datos" => $sentencia->fetchAll(PDO::FETCH_ASSOC)
-		                ];
-		        } else
-		            throw new ExcepcionApi(self::ESTADO_ERROR, "Se ha producido un error");
+		/**
+	     * Añade un nuevo contacto asociado a un usuario
+	     * @param int $idUsuario identificador del usuario
+	     * @param mixed $contacto datos del contacto
+	     * @return string identificador del contacto
+	     * @throws ExcepcionApi
+	     */
+	    private function crear($idUsuario, $contacto){
 
-		    } catch (PDOException $e) {
-		        throw new ExcepcionApi(self::ESTADO_ERROR_BD, $e->getMessage());
-		    }
-		
+			$primerNombre   = $contacto->primerNombre;
+			$primerApellido = $contacto->primerApellido;
+			$telefono       = $contacto->telefono;
+			$correo         = $contacto->correo;
+
+            $comando = "CALL SP_CREATECONTACTO(
+            	'$primerNombre','$primerApellido','$telefono','$correo',$idUsuario
+            )";
+
+            $resultado = ConexionBD::query_single_object($comando);
+            
+            if($resultado != 0)
+	            return $resultado->id;
+            else
+            	throw new ExcepcionApi(self::CODIGO_ERROR, self::MSG_ERROR, 500);
+
 		}
 
 
@@ -210,41 +170,34 @@
 	     * @return PDOStatement
 	     * @throws Exception
 	     */
+
+
 	    private function actualizar($idUsuario, $contacto, $idContacto){
 
-	        try {
-	            // Creando consulta UPDATE
-	            $consulta = "UPDATE " . self::NOMBRE_TABLA .
-	                " SET " . self::PRIMER_NOMBRE . "=?," .
-	                self::PRIMER_APELLIDO . "=?," .
-	                self::TELEFONO . "=?," .
-	                self::CORREO . "=? " .
-	                " WHERE " . self::ID_CONTACTO . "=? AND " . self::ID_USUARIO . "=?";
+	
+			$primerNombre   = $contacto->primerNombre;
+			$primerApellido = $contacto->primerApellido;
+			$telefono       = $contacto->telefono;
+			$correo         = $contacto->correo;
 
-	            // Preparar la sentencia
-	            $sentencia = ConexionBD::obtenerInstancia()->obtenerBD()->prepare($consulta);
+            // Creando consulta UPDATE
+            $consulta = "
+            	UPDATE " . self::NOMBRE_TABLA .
+                " SET " . 
+				self::PRIMER_NOMBRE . "   = '$primerNombre'," .
+				self::PRIMER_APELLIDO . " = '$primerApellido'," .
+				self::TELEFONO . "        = '$telefono'," .
+				self::CORREO . "          = '$correo' " .
+                " WHEREs " . 
+                self::ID_CONTACTO . "= $idContacto AND " . 
+                self::ID_USUARIO . "= $idUsuario";
 
-	            $sentencia->bindParam(1, $primerNombre);
-	            $sentencia->bindParam(2, $primerApellido);
-	            $sentencia->bindParam(3, $telefono);
-	            $sentencia->bindParam(4, $correo);
-	            $sentencia->bindParam(5, $idContacto);
-	            $sentencia->bindParam(6, $idUsuario);
 
-	            $primerNombre = $contacto->primerNombre;
-	            $primerApellido = $contacto->primerApellido;
-	            $telefono = $contacto->telefono;
-	            $correo = $contacto->correo;
-
-	            // Ejecutar la sentencia
-	            $sentencia->execute();
-
-	            return $sentencia->rowCount();
-
-	        } catch (PDOException $e) {
-	            throw new ExcepcionApi(self::ESTADO_ERROR_BD, $e->getMessage());
-	        }
-	    
+            if($resultado = ConexionBD::query($consulta))
+            	return $resultado;
+            else
+				throw new ExcepcionApi(self::CODIGO_ERROR, self::MSG_ERROR, 500);
+ 
 	    }
 
 
@@ -257,26 +210,37 @@
 	     */
 	    private function eliminar($idUsuario, $idContacto){
 
-	        try {
-	            // Sentencia DELETE
-	            $comando = "DELETE FROM " . self::NOMBRE_TABLA .
-	                " WHERE " . self::ID_CONTACTO . "=? AND " .
-	                self::ID_USUARIO . "=?";
+            $comando = "DELETE FROM " . self::NOMBRE_TABLA . 
+            			" WHERE " . 
+						self::ID_CONTACTO . " = $idContacto AND " .
+						self::ID_USUARIO . "  = $idUsuario";
 
-	            // Preparar la sentencia
-	            $sentencia = ConexionBD::obtenerInstancia()->obtenerBD()->prepare($comando);
+           	return ConexionBD::query($comando);
 
-	            $sentencia->bindParam(1, $idContacto);
-	            $sentencia->bindParam(2, $idUsuario);
 
-	            $sentencia->execute();
+           	if ($resultado = ConexionBD::query($comando))
+           		return $resultado;
+           	else
+            	throw new ExcepcionApi(self::CODIGO_ERROR, self::MSG_ERROR, 500);
 
-	            return $sentencia->rowCount();
+	    }
 
-	        } catch (PDOException $e) {
-	            throw new ExcepcionApi(self::ESTADO_ERROR_BD, $e->getMessage());
-	        }
-	    
+
+	    /**
+	     * Valida la estructura de un contacto
+	     *
+	     * @param  object  $info  objeto con información de contacto
+	     * @return bool    true si el objeto tiene la estructura esperada, en caso contrario false
+	     */
+	    private function validaEstructura($info){
+
+	    	if ($info !== NULL && 
+	    		isset($info->primerNombre) && isset($info->primerApellido) && 
+	        	isset($info->telefono) && isset($info->correo))
+	    		return TRUE;
+	    	else
+	    		return FALSE;
+
 	    }
 
 

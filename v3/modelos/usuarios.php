@@ -21,6 +21,8 @@
 	    const ESTADO_FALLA_DESCONOCIDA = 7;
 	    const ESTADO_PARAMETROS_INCORRECTOS = 8;
 
+	    const MSG_CLAVE_NO_AUTORIZADA = "API Key no autorizada";
+
 	    public static function post($peticion){
 
 		    if ($peticion[0] == 'registro')
@@ -57,7 +59,6 @@
 		
 		}
 
-
 		private function crear($datosUsuario){
 
 		    $nombre = $datosUsuario->nombre;
@@ -71,24 +72,14 @@
 
 		    try {
 
-		        $pdo = ConexionBD::obtenerInstancia()->obtenerBD();
-
 		        // Sentencia INSERT
-		        $comando = "INSERT INTO " . self::NOMBRE_TABLA . " ( " .
-		            self::NOMBRE . "," .
-		            self::CONTRASENA . "," .
-		            self::CLAVE_API . "," .
-		            self::CORREO . ")" .
-		            " VALUES(?,?,?,?)";
+		        $comando = "
+		        	INSERT INTO " . self::NOMBRE_TABLA . " ( " .
+		            self::NOMBRE . "," . self::CONTRASENA . "," .
+		            self::CLAVE_API . "," . self::CORREO . ")" .
+		            " VALUES('$nombre','$contrasenaEncriptada','$claveApi','$correo')";
 
-		        $sentencia = $pdo->prepare($comando);
-
-		        $sentencia->bindParam(1, $nombre);
-		        $sentencia->bindParam(2, $contrasenaEncriptada);
-		        $sentencia->bindParam(3, $claveApi);
-		        $sentencia->bindParam(4, $correo);
-
-		        $resultado = $sentencia->execute();
+		        $resultado = ConexionBD::query($comando);
 
 		        if ($resultado)
 		            return self::ESTADO_CREACION_EXITOSA;
@@ -225,17 +216,16 @@
 
 		        $claveApi = $cabeceras["authorization"];
 
-		        if (usuarios::validarClaveApi($claveApi)) {
-		            return usuarios::obtenerIdUsuario($claveApi);
-		        } else {
-		            throw new ExcepcionApi(
-		                self::ESTADO_CLAVE_NO_AUTORIZADA, "Clave de API no autorizada", 401);
-		        }
+		        $resultado = usuarios::validarClaveApi($claveApi);
+
+		        if ($resultado != 0 && $resultado != NULL)
+		        	return usuarios::obtenerIdUsuario($claveApi);
+		        else
+		        	throw new ExcepcionApi(self::ESTADO_CLAVE_NO_AUTORIZADA, self::MSG_CLAVE_NO_AUTORIZADA, 300);
+
 
 		    } else {
-		        throw new ExcepcionApi(
-		            self::ESTADO_AUSENCIA_CLAVE_API,
-		            utf8_encode("Se requiere Clave del API para autenticación"));
+		        throw new ExcepcionApi(self::ESTADO_AUSENCIA_CLAVE_API, utf8_encode("Se requiere Clave del API para autenticación"));
 		    }
 
 		}
@@ -243,54 +233,27 @@
 
 		private function validarClaveApi($claveApi){
 
-		    $comando = "SELECT COUNT(" . self::ID_USUARIO . ")" .
+			$comando = "SELECT COUNT(" . self::ID_USUARIO . ") count" .
 		        " FROM " . self::NOMBRE_TABLA .
 		        " WHERE " . self::CLAVE_API . "='$claveApi'";
 
-		    $res = ConexionBD::conect()->query($comando);
-		    $a = ConexionBD::query_assoc($res);
-		    // $vec = array();
-		    // if($res)
-		    // 	while($fila = $res->fetch_assoc()){ $vec[] = $fila; }
+		    $resultado = ConexionBD::query_single_object($comando);
 
-
-		    echo 'prev';
-		    var_dump($a);
-		    echo 'prev';
-		    exit;
-		    
-
-
-		    $consult = "INSERT INTO contacto (primerNombre) VALUES ('primerNombre')";
-
-		    $res = ConexionBD::conect()->query($consult);
-		    // $sentencia = ConexionBD::obtenerInstancia()->obtenerBD()->prepare($comando);
-
-		    // $sentencia->bindParam(1, $claveApi);
-
-		    // $sentencia->execute();
-
-		    // return $sentencia->fetchColumn(0) > 0;
+		    return $resultado->count;
 
 		}
 
 
 		private function obtenerIdUsuario($claveApi){
 
-		    $comando = "SELECT " . self::ID_USUARIO .
-		        " FROM " . self::NOMBRE_TABLA .
-		        " WHERE " . self::CLAVE_API . "=?";
+		    $comando = "SELECT " . self::ID_USUARIO . " FROM " . self::NOMBRE_TABLA . " WHERE " . self::CLAVE_API . "= '$claveApi'";
 
-		    $sentencia = ConexionBD::obtenerInstancia()->obtenerBD()->prepare($comando);
+			if($resultado = ConexionBD::query_single_object($comando))
+				return $resultado->idUsuario;
+			else
+				throw new ExcepcionApi(self::CODIGO_NO_ENCONTRADO, self::MSG_NO_ENCONTRADO, 404);
 
-		    $sentencia->bindParam(1, $claveApi);
-
-		    if ($sentencia->execute()) {
-		        $resultado = $sentencia->fetch();
-		        return $resultado['idUsuario'];
-		    } 
-		    else
-		        return null;
+				
 
 		}
 
